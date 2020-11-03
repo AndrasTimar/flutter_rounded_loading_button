@@ -40,27 +40,29 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            RoundedLoadingButton(
-              child: Text('Tap me!', style: TextStyle(color: Colors.white)),
-              controller: _btnController,
-              onPressed: _doSomething,
-              width: 200,
-            ),
-            FlatButton(
-              child: Text("Reset"),
-              onPressed: _btnController.reset)
-          ],
+    return Theme(
+      data: ThemeData(primaryColor: Colors.blue),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title),
         ),
-      )
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              RoundedLoadingButton(
+                child: Text('Tap me!', style: TextStyle(color: Colors.white)),
+                controller: _btnController,
+                onPressed: _doSomething,
+                width: 200,
+              ),
+              FlatButton(
+                child: Text("Reset"),
+                onPressed: _btnController.reset)
+            ],
+          ),
+        )
+      ),
     );
   }
 }

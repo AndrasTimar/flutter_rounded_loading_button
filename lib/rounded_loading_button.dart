@@ -1,7 +1,9 @@
 library rounded_loading_button;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:provider/provider.dart';
 
 enum LoadingState { idle, loading, success, error }
 
@@ -26,7 +28,7 @@ class RoundedLoadingButton extends StatefulWidget {
   /// Whether to trigger the animation on the tap event
   final bool animateOnTap;
 
-  /// The color of the static icons 
+  /// The color of the static icons
   final Color valueColor;
 
   /// The curve of the shrink animation
@@ -41,141 +43,69 @@ class RoundedLoadingButton extends StatefulWidget {
   /// The elevation of the raised button
   final double elevation;
 
-  /// The color of the button when it is in the error state
-  final Color errorColor;
+  final Color borderColor;
+
+  final double borderWidth;
+
+  final Color errorStateColor;
+
+  final Duration afterAnimationTimeout;
 
   Duration get _borderDuration {
-    return new Duration(
-        milliseconds: (this.duration.inMilliseconds / 2).round());
+    return new Duration(milliseconds: (this.duration.inMilliseconds / 2).round());
   }
 
   RoundedLoadingButton(
       {Key key,
-      this.controller,
-      this.onPressed,
-      this.child,
-      this.color,
-      this.height = 50,
-      this.width = 300,
-      this.animateOnTap = true,
-      this.valueColor = Colors.white,
-      this.borderRadius = 35,
-      this.elevation = 2,
-      this.duration = const Duration(milliseconds: 500),
-      this.curve = Curves.easeInOutCirc,
-      this.errorColor = Colors.red});
+        this.controller,
+        this.onPressed,
+        this.child,
+        this.color,
+        this.height = 50,
+        this.width = 300,
+        this.animateOnTap = true,
+        this.valueColor = Colors.white,
+        this.borderRadius = 35,
+        this.elevation = 0.0,
+        this.duration = const Duration(milliseconds: 500),
+        this.curve = Curves.easeInOutCirc,
+        this.borderColor = Colors.transparent,
+        this.borderWidth = 0.0,
+        this.errorStateColor = Colors.red,
+        this.afterAnimationTimeout = const Duration(seconds: 1)});
 
   @override
   State<StatefulWidget> createState() => RoundedLoadingButtonState();
 }
 
-class RoundedLoadingButtonState extends State<RoundedLoadingButton>
-    with TickerProviderStateMixin {
+class RoundedLoadingButtonState extends State<RoundedLoadingButton> with TickerProviderStateMixin {
   AnimationController _buttonController;
   AnimationController _borderController;
-  AnimationController _checkButtonControler;
+  AnimationController _checkButtonController;
 
   Animation _squeezeAnimation;
   Animation _bounceAnimation;
   Animation _borderAnimation;
 
-  final _state = BehaviorSubject<LoadingState>.seeded(LoadingState.idle);
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    var _check = Container(
-        alignment: FractionalOffset.center,
-        decoration: new BoxDecoration(
-          color: widget.color ?? theme.primaryColor,
-          borderRadius:
-              new BorderRadius.all(Radius.circular(_bounceAnimation.value / 2)),
-        ),
-        width: _bounceAnimation.value,
-        height: _bounceAnimation.value,
-        child: _bounceAnimation.value > 20
-            ? Icon(
-                Icons.check,
-                color: widget.valueColor,
-              )
-            : null);
-
-    var _cross = Container(
-        alignment: FractionalOffset.center,
-        decoration: new BoxDecoration(
-          color: widget.errorColor,
-          borderRadius:
-              new BorderRadius.all(Radius.circular(_bounceAnimation.value / 2)),
-        ),
-        width: _bounceAnimation.value,
-        height: _bounceAnimation.value,
-        child: _bounceAnimation.value > 20
-            ? Icon(
-                Icons.close,
-                color: widget.valueColor,
-              )
-            : null);
-
-    var _loader = SizedBox(
-        height: widget.height - 25,
-        width: widget.height - 25,
-        child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(widget.valueColor),
-            strokeWidth: 2));
-
-    var childStream = StreamBuilder(
-      stream: _state,
-      builder: (BuildContext context, AsyncSnapshot snapshot) {
-        return AnimatedSwitcher(
-            duration: Duration(milliseconds: 200),
-            child:
-                snapshot.data == LoadingState.loading ? _loader : widget.child);
-      },
-    );
-
-    var _btn = ButtonTheme(
-        shape: RoundedRectangleBorder(borderRadius: _borderAnimation.value),
-        minWidth: _squeezeAnimation.value,
-        height: widget.height,
-        child: RaisedButton(
-            padding: EdgeInsets.all(0),
-            child: childStream,
-            color: widget.color,
-            elevation: widget.elevation,
-            onPressed: widget.onPressed == null ? null : _btnPressed));
-
-    return Container(
-        height: widget.height,
-        child: Center(
-            child: _state.value == LoadingState.error
-                ? _cross
-                : _state.value == LoadingState.success ? _check : _btn));
-  }
+  CurrentLoadingButtonState _stateChangeNotifier;
 
   @override
   void initState() {
     super.initState();
 
-    _buttonController =
-        new AnimationController(duration: widget.duration, vsync: this);
+    _stateChangeNotifier = CurrentLoadingButtonState(LoadingState.idle);
+    _buttonController = new AnimationController(duration: widget.duration, vsync: this);
 
-    _checkButtonControler = new AnimationController(
-        duration: new Duration(milliseconds: 1000), vsync: this);
+    _checkButtonController = new AnimationController(duration: new Duration(milliseconds: 1000), vsync: this);
 
-    _borderController =
-        new AnimationController(duration: widget._borderDuration, vsync: this);
+    _borderController = new AnimationController(duration: widget._borderDuration, vsync: this);
 
-    _bounceAnimation = Tween<double>(begin: 0, end: widget.height).animate(
-        new CurvedAnimation(
-            parent: _checkButtonControler, curve: Curves.elasticOut));
+    _bounceAnimation = Tween<double>(begin: 0, end: widget.height).animate(new CurvedAnimation(parent: _checkButtonController, curve: Curves.elasticOut));
     _bounceAnimation.addListener(() {
       setState(() {});
     });
 
-    _squeezeAnimation = Tween<double>(begin: widget.width, end: widget.height)
-        .animate(new CurvedAnimation(
-            parent: _buttonController, curve: widget.curve));
+    _squeezeAnimation = Tween<double>(begin: widget.width, end: widget.height).animate(new CurvedAnimation(parent: _buttonController, curve: widget.curve));
 
     _squeezeAnimation.addListener(() {
       setState(() {});
@@ -187,10 +117,7 @@ class RoundedLoadingButtonState extends State<RoundedLoadingButton>
       }
     });
 
-    _borderAnimation = BorderRadiusTween(
-            begin: BorderRadius.circular(widget.borderRadius),
-            end: BorderRadius.circular(widget.height))
-        .animate(_borderController);
+    _borderAnimation = BorderRadiusTween(begin: BorderRadius.circular(widget.borderRadius), end: BorderRadius.circular(widget.height)).animate(_borderController);
 
     _borderAnimation.addListener(() {
       setState(() {});
@@ -200,11 +127,72 @@ class RoundedLoadingButtonState extends State<RoundedLoadingButton>
   }
 
   @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    var _check = Container(
+        alignment: FractionalOffset.center,
+        decoration: new BoxDecoration(
+          color: widget.color ?? theme.primaryColor,
+          borderRadius: new BorderRadius.all(Radius.circular(_bounceAnimation.value / 2)),
+        ),
+        width: _bounceAnimation.value,
+        height: _bounceAnimation.value,
+        child: _bounceAnimation.value > 20
+            ? Icon(
+          Icons.check,
+          color: widget.valueColor,
+        )
+            : null);
+    var _cross = Container(
+        alignment: FractionalOffset.center,
+        decoration: new BoxDecoration(
+            color: widget.errorStateColor,
+            borderRadius: new BorderRadius.all(Radius.circular(_bounceAnimation.value / 2)),
+            border: Border.fromBorderSide(BorderSide(color: widget.borderColor, width: widget.borderWidth))),
+        width: _bounceAnimation.value,
+        height: _bounceAnimation.value,
+        child: _bounceAnimation.value > 20
+            ? Icon(
+          Icons.close,
+          color: widget.valueColor,
+        )
+            : null);
+
+    var _loader = SizedBox(
+        height: widget.height - 25, width: widget.height - 25, child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(widget.valueColor), strokeWidth: 2));
+
+    var childStream = Consumer<CurrentLoadingButtonState>(
+      builder: (BuildContext context, CurrentLoadingButtonState state, _) {
+        return AnimatedSwitcher(duration: Duration(milliseconds: 200), child: state.state == LoadingState.loading ? _loader : widget.child);
+      },
+    );
+
+    var _btn = ButtonTheme(
+        shape: RoundedRectangleBorder(side: BorderSide(color: widget.borderColor, width: widget.borderWidth), borderRadius: _borderAnimation.value),
+        minWidth: _squeezeAnimation.value,
+        height: widget.height,
+        child: RaisedButton(
+            padding: EdgeInsets.all(0), child: childStream, color: widget.color ?? theme.primaryColor, elevation: widget.elevation, onPressed: widget.onPressed == null ? null : _btnPressed));
+
+    return ChangeNotifierProvider.value(
+      value: _stateChangeNotifier,
+      child: Container(
+          height: widget.height,
+          child: Center(
+              child: _stateChangeNotifier.state == LoadingState.error
+                  ? _cross
+                  : _stateChangeNotifier.state == LoadingState.success
+                  ? _check
+                  : _btn)),
+    );
+  }
+
+  @override
   void dispose() {
     _buttonController.dispose();
-    _checkButtonControler.dispose();
+    _checkButtonController.dispose();
     _borderController.dispose();
-    _state.close();
     super.dispose();
   }
 
@@ -212,53 +200,49 @@ class RoundedLoadingButtonState extends State<RoundedLoadingButton>
     if (widget.animateOnTap) {
       _start();
     } else {
-      widget.onPressed();
+      if (_stateChangeNotifier.state == LoadingState.idle) widget.onPressed();
     }
   }
 
   _start() {
-    _state.sink.add(LoadingState.loading);
+    _stateChangeNotifier.state = LoadingState.loading;
     _borderController.forward();
     _buttonController.forward();
   }
 
   _stop() {
-    _state.sink.add(LoadingState.idle);
+    _stateChangeNotifier.state = LoadingState.idle;
     _buttonController.reverse();
     _borderController.reverse();
   }
 
-  _success() {
-    _state.sink.add(LoadingState.success);
-    _checkButtonControler.forward();
+  _success(VoidCallback onAfterAnimation) async {
+    await Future.sync(() => _stateChangeNotifier.state = LoadingState.success)
+        .then((_) => _checkButtonController.forward())
+        .then((value) => Future.delayed(widget.afterAnimationTimeout, onAfterAnimation));
   }
 
-  _error() {
-    _state.sink.add(LoadingState.error);
-    _checkButtonControler.forward();
+  _error(VoidCallback onAfterAnimation) async {
+    await Future.sync(() => _stateChangeNotifier.state = LoadingState.error)
+        .then((_) => _checkButtonController.forward())
+        .then((value) => Future.delayed(widget.afterAnimationTimeout, onAfterAnimation));
   }
 
-  _reset() {
-    _state.sink.add(LoadingState.idle);
-    _buttonController.reverse();
-    _borderController.reverse();
-    _checkButtonControler.reset();
+  _reset() async {
+    await Future.wait([_borderController.reverse(), _checkButtonController.reverse()])
+        .then((value) => _stateChangeNotifier.state = LoadingState.idle)
+        .then((value) => _buttonController.reverse());
   }
 }
 
 class RoundedLoadingButtonController {
   VoidCallback _startListener;
   VoidCallback _stopListener;
-  VoidCallback _successListener;
-  VoidCallback _errorListener;
+  Function(VoidCallback) _successListener;
+  Function(VoidCallback) _errorListener;
   VoidCallback _resetListener;
 
-  _addListeners(
-      VoidCallback startListener,
-      VoidCallback stopListener,
-      VoidCallback successListener,
-      VoidCallback errorListener,
-      VoidCallback resetListener) {
+  _addListeners(VoidCallback startListener, VoidCallback stopListener, Function(VoidCallback) successListener, Function(VoidCallback) errorListener, VoidCallback resetListener) {
     this._startListener = startListener;
     this._stopListener = stopListener;
     this._successListener = successListener;
@@ -274,15 +258,30 @@ class RoundedLoadingButtonController {
     _stopListener();
   }
 
-  success() {
-    _successListener();
+  success({VoidCallback onAfterAnimation}) {
+    _successListener(onAfterAnimation);
   }
 
-  error() {
-    _errorListener();
+  error({VoidCallback onAfterAnimation}) {
+    _errorListener(onAfterAnimation);
   }
 
   reset() {
     _resetListener();
+  }
+}
+
+class CurrentLoadingButtonState extends ChangeNotifier {
+  LoadingState _state;
+
+  LoadingState get state => _state;
+
+  set state(LoadingState state) {
+    _state = state;
+    notifyListeners();
+  }
+
+  CurrentLoadingButtonState(LoadingState state) : assert(state != null) {
+    this.state = state;
   }
 }
